@@ -11,7 +11,8 @@ import ScaleCodec
 
 public struct SubstrateRpcChainApi<S: SubstrateProtocol>: SubstrateRpcApi {
     public weak var substrate: S!
-    public typealias ChainBlock<Extrinsic: Codable> = SignedBlock<Block<S.R.THeader, Extrinsic>>
+    
+    public typealias ChainBlock<Extrinsic> = SignedBlock<Block<S.R.THeader, Extrinsic>>
     
     public init(substrate: S) {
         self.substrate = substrate
@@ -29,7 +30,8 @@ public struct SubstrateRpcChainApi<S: SubstrateProtocol>: SubstrateRpcApi {
                         block: Block(
                             header: cbd.block.header,
                             extrinsics: try cbd.block.extrinsics.map {
-                                try S.R.TExtrinsic(data: $0, registry: self.substrate.registry)
+                                try S.R.TExtrinsic(from: SCALE.default.decoder(data: $0),
+                                                   registry: self.substrate.registry)
                             }
                         ),
                         justification: cbd.justification
@@ -38,6 +40,16 @@ public struct SubstrateRpcChainApi<S: SubstrateProtocol>: SubstrateRpcApi {
             }
             cb(response)
         }
+    }
+    
+    public func getBlockHash(
+        block: S.R.TBlockNumber?, timeout: TimeInterval? = nil,
+        _ cb: @escaping SRpcApiCallback<S.R.THash>
+    ) {
+        Self.getBlockHash(
+            block: block, client: substrate.client,
+            timeout: timeout ?? substrate.callTimeout, cb
+        )
     }
     
     public func getFinalizedHead(timeout: TimeInterval? = nil, _ cb: @escaping SRpcApiCallback<S.R.THash>) {
@@ -56,29 +68,6 @@ public struct SubstrateRpcChainApi<S: SubstrateProtocol>: SubstrateRpcApi {
             params: RpcCallParams(hash),
             timeout: timeout ?? substrate.callTimeout
         ) { (res: RpcClientResult<S.R.THeader>) in
-            cb(res.mapError(SubstrateRpcApiError.rpc))
-        }
-    }
-    
-    public func getBlockHash(
-        block: S.R.TBlockNumber?, timeout: TimeInterval? = nil,
-        _ cb: @escaping SRpcApiCallback<S.R.THash>
-    ) {
-        Self.getBlockHash(
-            block: block, client: substrate.client,
-            timeout: timeout ?? substrate.callTimeout, cb
-        )
-    }
-    
-    public static func getBlockHash(
-        block: S.R.TBlockNumber?, client: RpcClient, timeout: TimeInterval,
-        _ cb: @escaping SRpcApiCallback<S.R.THash>
-    ) {
-        client.call(
-            method: "chain_getBlockHash",
-            params: RpcCallParams(block?.jsonData),
-            timeout: timeout
-        ) { (res: RpcClientResult<S.R.THash>) in
             cb(res.mapError(SubstrateRpcApiError.rpc))
         }
     }
@@ -111,6 +100,21 @@ extension SubstrateRpcChainApi where S.C: SubscribableRpcClient {
             params: RpcCallParams(),
             unsubscribe: "chain_unsubscribeNewHeads"
         ) { (res: RpcClientResult<S.R.THeader>) in
+            cb(res.mapError(SubstrateRpcApiError.rpc))
+        }
+    }
+}
+
+extension SubstrateRpcChainApi { // Static
+    public static func getBlockHash(
+        block: S.R.TBlockNumber?, client: RpcClient, timeout: TimeInterval,
+        _ cb: @escaping SRpcApiCallback<S.R.THash>
+    ) {
+        client.call(
+            method: "chain_getBlockHash",
+            params: RpcCallParams(block?.jsonData),
+            timeout: timeout
+        ) { (res: RpcClientResult<S.R.THash>) in
             cb(res.mapError(SubstrateRpcApiError.rpc))
         }
     }

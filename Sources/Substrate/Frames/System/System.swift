@@ -8,15 +8,15 @@
 import Foundation
 import ScaleCodec
 
-public protocol System {
-    associatedtype TIndex: ScaleDynamicCodable & CompactCodable & SDefault
+public protocol System: BaseFrame {
+    associatedtype TIndex: ScaleDynamicCodable & CompactCodable & SDefault & Codable
     associatedtype TBlockNumber: BlockNumberProtocol
     associatedtype THash: Hash
     associatedtype THasher: Hasher
     associatedtype TAccountId: PublicKey & Hashable & SDefault
     associatedtype TAddress: Address & SDefault
     associatedtype THeader: ScaleDynamicCodable & Codable
-    associatedtype TExtrinsic: ExtrinsicProtocol & Codable
+    associatedtype TExtrinsic: ExtrinsicProtocol
     associatedtype TAccountData: ScaleDynamicCodable
 }
 
@@ -37,8 +37,9 @@ open class SystemModule<S: System>: ModuleProtocol {
         try registry.register(type: S.TAddress.self, as: .type(name: "LookupSource"))
         try registry.register(type: S.THeader.self, as: .type(name: "Header"))
         try registry.register(type: S.TAccountData.self, as: .type(name: "AccountData"))
+        try registry.register(type: S.TExtrinsic.self, as: .type(name: "Extrinsic"))
         try registry.register(type: Origin<S.TAccountId>.self, as: .type(name: "Origin"))
-        try registry.register(type: RuntimeDbWeight.self, as: .type(name: "RuntimeDbWeight"))
+        try registry.register(type: RuntimeDbWeight<S.TWeight>.self, as: .type(name: "RuntimeDbWeight"))
         try registry.register(type: RefCount.self, as: .type(name: "RefCount"))
         try registry.register(type: SCompact<RefCount>.self, as: .compact(type: .type(name: "RefCount")))
         // System calls
@@ -54,16 +55,17 @@ open class SystemModule<S: System>: ModuleProtocol {
 }
 
 
-public struct RuntimeDbWeight: ScaleCodable, ScaleDynamicCodable {
+public struct RuntimeDbWeight<Weight: WeightProtocol>: ScaleDynamicCodable {
     public let read: Weight
     public let write: Weight
     
-    public init(from decoder: ScaleDecoder) throws {
-        read = try decoder.decode()
-        write = try decoder.decode()
+    public init(from decoder: ScaleDecoder, registry: TypeRegistryProtocol) throws {
+        read = try Weight(from: decoder, registry: registry)
+        write = try Weight(from: decoder, registry: registry)
     }
     
-    public func encode(in encoder: ScaleEncoder) throws {
-        try encoder.encode(read).encode(write)
+    public func encode(in encoder: ScaleEncoder, registry: TypeRegistryProtocol) throws {
+        try read.encode(in: encoder, registry: registry)
+        try write.encode(in: encoder, registry: registry)
     }
 }

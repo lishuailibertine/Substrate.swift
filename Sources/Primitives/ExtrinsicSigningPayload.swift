@@ -8,12 +8,12 @@
 import Foundation
 import ScaleCodec
 
-public struct ExtrinsicSigningPayload<Call: AnyCall, Extra: SignedExtension> {
-    public let call: Call
+public struct ExtrinsicSigningPayload<Extra: SignedExtension>: ExtrinsicSigningPayloadProtocol {
+    public let call: AnyCall
     public let extra: Extra
     public let payload: Extra.AdditionalSignedPayload
     
-    public init(call: Call, extra: Extra) throws {
+    public init(call: AnyCall, extra: Extra) throws {
         self.call = call
         self.payload = try extra.additionalSignedPayload()
         self.extra = extra
@@ -23,7 +23,7 @@ public struct ExtrinsicSigningPayload<Call: AnyCall, Extra: SignedExtension> {
 extension ExtrinsicSigningPayload: ScaleDynamicEncodable {
     public func encode(in encoder: ScaleEncoder, registry: TypeRegistryProtocol) throws {
         let enc = SCALE.default.encoder()
-        try registry.encode(call: call, in: enc)
+        try call.encode(in: enc, registry: registry)
         try extra.encode(in: enc, registry: registry)
         try payload.encode(in: enc, registry: registry)
         var data = enc.output

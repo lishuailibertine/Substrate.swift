@@ -18,13 +18,10 @@ open class SudoModule<S: Sudo>: ModuleProtocol {
     public init() {}
     
     open func registerEventsCallsAndTypes<R>(in registry: R) throws where R : TypeRegistryProtocol {
-        try registry.register(type: Weight.self, as: .type(name: "Weight"))
         try registry.register(call: SudoCall<S>.self)
         try registry.register(call: SudoUncheckedWeightCall<S>.self)
     }
 }
-
-public typealias Weight = UInt64
 
 /// Execute a transaction with sudo permissions.
 public struct SudoCall<S: Sudo> {
@@ -37,12 +34,14 @@ extension SudoCall: Call {
     
     public static var FUNCTION: String { "sudo" }
     
+    public var params: Dictionary<String, Any> { ["call": call] }
+    
     public init(decodingParamsFrom decoder: ScaleDecoder, registry: TypeRegistryProtocol) throws {
         call = try registry.decode(callFrom: decoder)
     }
     
     public func encode(paramsIn encoder: ScaleEncoder, registry: TypeRegistryProtocol) throws {
-        try registry.encode(call: call, in: encoder)
+        try call.encode(in: encoder, registry: registry)
     }
 }
 
@@ -54,7 +53,7 @@ public struct SudoUncheckedWeightCall<S: Sudo> {
     ///
     /// This argument is actually unused in runtime, you can pass any value of
     /// `Weight` type when using this call.
-    public let weight: Weight
+    public let weight: S.TWeight
 }
 
 extension SudoUncheckedWeightCall: Call {
@@ -62,13 +61,15 @@ extension SudoUncheckedWeightCall: Call {
     
     public static var FUNCTION: String { "sudo_unchecked_weight" }
     
+    public var params: Dictionary<String, Any> { ["call": call, "weight": weight] }
+    
     public init(decodingParamsFrom decoder: ScaleDecoder, registry: TypeRegistryProtocol) throws {
         call = try registry.decode(callFrom: decoder)
-        weight = try decoder.decode()
+        weight = try S.TWeight(from: decoder, registry: registry)
     }
     
     public func encode(paramsIn encoder: ScaleEncoder, registry: TypeRegistryProtocol) throws {
-        try registry.encode(call: call, in: encoder)
+        try call.encode(in: encoder, registry: registry)
         try weight.encode(in: encoder, registry: registry)
     }
 }

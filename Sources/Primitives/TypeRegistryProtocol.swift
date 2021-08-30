@@ -17,14 +17,11 @@ public enum TypeRegistryError: Error {
     // Events
     case eventFoundWrongEvent(module: String, event: String, exmodule: String, exevent: String)
     case eventDecodingError(module: String, event: String, error: SDecodingError)
-    case eventRegistrationError(event: AnyEvent, message: String)
     // Calls
     case callFoundWrongCall(module: String, function: String, exmodule: String, exfunction: String)
     case callDecodingError(module: String, function: String, error: SDecodingError)
-    case callRegistrationError(event: AnyEvent, message: String)
-    case callEncodingError(call: AnyCall, error: SEncodingError)
-    case callEncodingWrongParametersCount(call: DynamicCall, count: Int, expected: Int)
-    case callEncodingUnknownCallType(call: AnyCall)
+    case callEncodingMissingParameter(call: DCall, parameter: String, type: DType)
+    case callEncodingWrongParametersCount(call: DCall, count: Int, expected: Int)
     // Meta
     case metadata(error: MetadataError)
     // Value Encoding
@@ -37,12 +34,14 @@ public enum TypeRegistryError: Error {
     case encodingWrongElementCount(in: ScaleDynamicEncodable, expected: Int)
     // Storage
     case storageItemBadPathTypesCount(module: String, field: String, count: Int, expected: Int)
-    case storageItemBadItemType(module: String, field: String, type: String, expected: String)
+    case storageItemBadPathCount(module: String, field: String, count: Int, expected: Int)
     case storageItemEmptyItem(module: String, field: String)
-    case storageItemDecodingError(module: String, field: String, error: SDecodingError)
+    case storageItemUnknownPrefix(prefix: Data)
     case storageItemDecodingBadPrefix(module: String, field: String, prefix: Data, expected: Data)
     // Validation
     case validationError(missingTypes: Dictionary<DType, [String]>)
+    // Common decoding error
+    case decoding(error: SDecodingError)
     // Unknown
     case unknown(error: Error)
 }
@@ -51,15 +50,13 @@ public protocol TypeRegistryProtocol: AnyObject {
     var ss58AddressFormat: Ss58AddressFormat { get set }
     
     // Storage
-    func hash<K: DynamicStorageKey>(of key: K) throws -> Data
-    func hash<K: StaticStorageKey>(of key: K) throws -> Data
-    func hash<K: DynamicStorageKey>(iteratorOf key: K) throws -> Data
-    func hash<K: IterableStaticStorageKey>(iteratorOf key: K) throws -> Data
-    func type<K: AnyStorageKey>(valueOf key: K) throws -> DType
-    func value<K: DynamicStorageKey>(defaultOf key: K) throws -> DValue
-    func value<K: StaticStorageKey>(defaultOf key: K) throws -> K.Value
-    func decode<K: DynamicStorageKey>(key: K.Type, module: String, field: String, from data: Data) throws -> K
-    func decode<K: StaticStorageKey>(key: K.Type, from data: Data) throws -> K
+    func info(forKey prefix: Data) throws -> (module: String, field: String)
+    func hashers(forKey field: String, in module: String) throws -> [Hasher]
+    func types(forKey field: String, in module: String) throws -> [DType]
+    func value(defaultOf key: DStorageKey) throws -> DValue
+    func value<K: StorageKey>(defaultOf key: K) throws -> K.Value
+    func decode(keyFrom decoder: ScaleDecoder) throws -> AnyStorageKey
+    func register<K: StorageKey>(key: K.Type) throws
     
     // Constants
     func type<C: AnyConstant>(of constant: C) throws -> DType
@@ -67,13 +64,13 @@ public protocol TypeRegistryProtocol: AnyObject {
     func value<C: Constant>(of constant: C) throws -> C.Value
     
     // Events
+    func info(forEvent header: (module: UInt8, event: UInt8)) throws -> (module: String, event: String)
+    func types(forEvent event: String, in module: String) throws -> [DType]
     func decode(eventFrom decoder: ScaleDecoder) throws -> AnyEvent
-    func decode<E: Event>(event: E.Type, from decoder: ScaleDecoder) throws -> E
     func register<E: Event>(event: E.Type) throws
     
     // Values
     func type<T: DynamicTypeId>(of t: T.Type) throws -> DType
-//    func value<T: ScaleDynamicCodable>(dynamic val: T) throws -> DValue
     func encode(value: ScaleDynamicEncodable, type: DType, in encoder: ScaleEncoder) throws
     func encode(dynamic: DValue, type: DType, in encoder: ScaleEncoder) throws
     func decode<V: ScaleDynamicDecodable>(static: V.Type, as type: DType, from decoder: ScaleDecoder) throws -> V
@@ -81,9 +78,10 @@ public protocol TypeRegistryProtocol: AnyObject {
     func register<T: ScaleDynamicCodable>(type: T.Type, as dynamic: DType) throws
     
     // Calls
-    func encode(call: AnyCall, in encoder: ScaleEncoder) throws
+    func info(forCall header: (module: UInt8, call: UInt8)) throws -> (module: String, call: String)
+    func header(forCall call: String, in module: String) throws -> (module: UInt8, call: UInt8)
+    func types(forCall call: String, in module: String) throws -> [(String, DType)]
     func decode(callFrom decoder: ScaleDecoder) throws -> AnyCall
-    func decode<C: Call>(call: C.Type, from decoder: ScaleDecoder) throws -> C
     func register<C: Call>(call: C.Type) throws
 }
 

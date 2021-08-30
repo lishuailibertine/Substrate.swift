@@ -18,12 +18,13 @@ extension DefaultNodeRuntime: Balances {
 extension DefaultNodeRuntime: System {
     public typealias TIndex = UInt32
     public typealias TBlockNumber = UInt32
+    public typealias TWeight = UInt64
     public typealias THash = Hash256
     public typealias THasher = HBlake2b256
     public typealias TAccountId = Sr25519PublicKey
     public typealias TAddress = MultiAddress<TAccountId, TIndex>
     public typealias THeader = Header<TBlockNumber, THash>
-    public typealias TExtrinsic = OpaqueExtrinsic
+    public typealias TExtrinsic = Extrinsic<TAddress, MultiSignature, DefaultExtrinsicExtra<Self>>
     public typealias TAccountData = AccountData<TBalance>
 }
 
@@ -46,12 +47,14 @@ extension DefaultNodeRuntime: AuthorityDiscovery {}
 extension DefaultNodeRuntime: BeefyApi {
     public typealias TBeefyPayload = Hash256
     public typealias TBeefyValidatorSetId = UInt64
+    public typealias TBeefySignature = EcdsaSignature
+}
+
+extension DefaultNodeRuntime: DefaultExtrinsicExtraProvider {
+    public typealias TExtraOptions = Void
 }
 
 extension DefaultNodeRuntime: Runtime {
-    public typealias TSignature = MultiSignature
-    public typealias TExtrinsicExtra = DefaultExtrinsicExtra<Self>
-    
     public var supportedSpecVersions: Range<UInt32> {
         return UInt32.min..<UInt32.max
     }
